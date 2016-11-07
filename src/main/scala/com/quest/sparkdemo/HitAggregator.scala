@@ -76,7 +76,7 @@ object HitAggregator {
     val aggregatedHitStats = aggregatedHitStatsByURL.map { case (url, stats) => stats }
     val hitCount = aggregatedHitStats.map(s => s.count + s.error_count).fold(0)((c1, c2) => c1 + c2)
     val aggCount = aggregatedHitStats.count()
-    aggregatedHitStats.saveToCassandra("sparktest", "aggregated_hits")
+    aggregatedHitStats.saveToCassandra("sparkdemo", "aggregated_hits")
 
     AggregateResult(hitCount, aggCount)
   }
