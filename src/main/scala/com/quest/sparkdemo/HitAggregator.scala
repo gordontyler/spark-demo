@@ -30,16 +30,12 @@ object HitAggregator {
       .post("/aggregate", new HttpHandler {
         override def handleRequest(exchange: HttpServerExchange): Unit = {
           try {
-            val hits = sc.cassandraTable[Hit]("sparktest", "hits")
-            val hitStats = hits.map(h => (h.url, AggregatedHitStats.from(h)))
-            val aggregatedHitStats = hitStats.reduceByKey(_ + _).map { case (url, stats) => stats }
-            val hitCount = aggregatedHitStats.map(s => s.count + s.error_count).reduce(_ + _)
-            val aggCount = aggregatedHitStats.count()
-            aggregatedHitStats.saveToCassandra("sparktest", "aggregated_hits")
+            val result = aggregate(sc)
+
             exchange.getResponseSender.send(pretty(render(
               JObject(
-                "hitCount" -> JInt(hitCount),
-                "aggCount" -> JInt(aggCount)
+                "hitCount" -> JInt(result.hitCount),
+                "aggCount" -> JInt(result.aggCount)
               )
             )))
           }
@@ -72,4 +68,18 @@ object HitAggregator {
     server.stop()
     sc.stop()
   }
+
+  def aggregate(sc: SparkContext): AggregateResult = {
+    val hits = sc.cassandraTable[Hit]("sparktest", "hits")
+    val hitStatsByURL = hits.map(hit => (hit.url, HitStats.from(hit)))
+    val aggregatedHitStatsByURL = hitStatsByURL.reduceByKey((hs1, hs2) => hs1 + hs2)
+    val aggregatedHitStats = aggregatedHitStatsByURL.map { case (url, stats) => stats }
+    val hitCount = aggregatedHitStats.map(s => s.count + s.error_count).fold(0)((c1, c2) => c1 + c2)
+    val aggCount = aggregatedHitStats.count()
+    aggregatedHitStats.saveToCassandra("sparktest", "aggregated_hits")
+
+    AggregateResult(hitCount, aggCount)
+  }
+
+  case class AggregateResult(hitCount: Int, aggCount: Long)
 }
