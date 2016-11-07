@@ -4,6 +4,8 @@ import java.io.File
 
 import com.datastax.driver.core.utils.UUIDs
 import com.datastax.spark.connector.streaming._
+import io.undertow.server.{HttpHandler, HttpServerExchange}
+import io.undertow.{Handlers, Undertow}
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.{Duration, StreamingContext}
 
@@ -35,8 +37,29 @@ object HitLoader {
 
     hits.saveToCassandra("sparktest", "hits")
 
+    @volatile var server: Undertow = null
+    val stopSignal = new Object()
+
+    val routeHandler = Handlers.routing()
+      .post("/shutdown", new HttpHandler {
+        override def handleRequest(exchange: HttpServerExchange): Unit = {
+          stopSignal.synchronized {
+            stopSignal.notifyAll()
+          }
+        }
+      })
+
+    server = Undertow.builder().addHttpListener(8181, "localhost", routeHandler).build()
+    server.start()
+
     ssc.start()
-    ssc.awaitTermination()
+
+    stopSignal.synchronized {
+      stopSignal.wait()
+    }
+
+    server.stop()
+    ssc.stop()
   }
 
 }
