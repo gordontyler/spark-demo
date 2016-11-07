@@ -62,7 +62,7 @@ object HitAggregator {
         }
       })
 
-    server = Undertow.builder().addHttpListener(8181, "localhost", routeHandler).build()
+    server = Undertow.builder().addHttpListener(8282, "localhost", routeHandler).build()
     server.start()
 
     stopSignal.synchronized {
