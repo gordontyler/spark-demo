@@ -1,12 +1,19 @@
 package com.quest.sparkdemo
 
 import com.datastax.spark.connector._
+import io.undertow.server.{HttpHandler, HttpServerExchange}
+import io.undertow.{Handlers, Undertow}
 import org.apache.spark.{SparkConf, SparkContext}
+import org.json4s.DefaultFormats
+import org.json4s.JsonAST.{JInt, JObject, JString}
+import org.json4s.native.JsonMethods._
 
 /**
   * Created 2016-05-28 10:13 PM by gordon.
   */
 object HitAggregator {
+  implicit val jsonFormats = DefaultFormats
+
   def main(args: Array[String]) {
     val conf = new SparkConf()
       .setAppName("HitAggregator")
@@ -17,10 +24,34 @@ object HitAggregator {
 
     val sc = new SparkContext(conf)
 
-    val hits = sc.cassandraTable[Hit]("sparktest", "hits")
-    val hitStats = hits.map(h => (h.url, AggregatedHitStats.from(h)))
-    val aggregatedHitStats = hitStats.reduceByKey(_ + _).map{ case (url, stats) => stats}
+    val routeHandler = Handlers.routing()
+      .post("/aggregate", new HttpHandler {
+        override def handleRequest(exchange: HttpServerExchange): Unit = {
+          try {
+            val hits = sc.cassandraTable[Hit]("sparktest", "hits")
+            val hitStats = hits.map(h => (h.url, AggregatedHitStats.from(h)))
+            val aggregatedHitStats = hitStats.reduceByKey(_ + _).map { case (url, stats) => stats }
+            val count = aggregatedHitStats.count()
+            aggregatedHitStats.saveToCassandra("sparktest", "aggregated_hits")
+            exchange.getResponseSender.send(pretty(render(
+              JObject(
+                "count" -> JInt(count)
+              )
+            )))
+          }
+          catch {
+            case e: Exception =>
+              exchange.setStatusCode(500)
+              exchange.getResponseSender.send(pretty(render(
+                JObject(
+                  "error" -> JString(e.toString)
+                )
+              )))
+          }
+        }
+      })
 
-    aggregatedHitStats.saveToCassandra("sparktest", "aggregated_hits")
+    val server = Undertow.builder().addHttpListener(8181, "localhost", routeHandler).build()
+    server.start()
   }
 }
