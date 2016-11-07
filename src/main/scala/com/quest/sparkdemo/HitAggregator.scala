@@ -65,6 +65,8 @@ object HitAggregator {
       stopSignal.wait()
     }
 
+    Thread.sleep(1000)
+
     server.stop()
     sc.stop()
   }

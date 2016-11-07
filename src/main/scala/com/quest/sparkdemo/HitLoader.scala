@@ -58,6 +58,8 @@ object HitLoader {
       stopSignal.wait()
     }
 
+    Thread.sleep(1000)
+
     server.stop()
     ssc.stop()
   }
