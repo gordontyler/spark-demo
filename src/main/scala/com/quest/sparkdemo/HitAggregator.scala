@@ -10,7 +10,11 @@ object HitAggregator {
   def main(args: Array[String]) {
     val conf = new SparkConf()
       .setAppName("HitAggregator")
-      .set("spark.cassandra.connection.host", "localhost")
+
+    if (conf.get("spark.cassandra.connection.host", null) == null) {
+      conf.set("spark.cassandra.connection.host", "localhost")
+    }
+
     val sc = new SparkContext(conf)
 
     val hits = sc.cassandraTable[Hit]("sparktest", "hits")

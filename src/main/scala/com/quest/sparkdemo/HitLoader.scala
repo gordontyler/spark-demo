@@ -15,13 +15,16 @@ object HitLoader {
   def main(args: Array[String]) {
     val conf = new SparkConf()
       .setAppName("HitLoader")
-      .set("spark.cassandra.connection.host", "localhost")
       .set("spark.cassandra.connection.keep_alive_ms", "20000")
+
+    if (conf.get("spark.cassandra.connection.host", null) == null) {
+      conf.set("spark.cassandra.connection.host", "localhost")
+    }
+
     val ssc = new StreamingContext(conf, Duration(10000))
 
     val inputsDir: File = new File(System.getenv("HOME"), "dev/spark-test/inputs")
     val input = ssc.textFileStream(inputsDir.toString)
-    //val input = jsc.socketTextStream("localhost", 9999)
     input.print()
 
     val lines = input.flatMap(ParsedLogLine.parse)
@@ -37,6 +40,3 @@ object HitLoader {
   }
 
 }
-
-
-
