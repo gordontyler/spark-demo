@@ -33,11 +33,13 @@ object HitAggregator {
             val hits = sc.cassandraTable[Hit]("sparktest", "hits")
             val hitStats = hits.map(h => (h.url, AggregatedHitStats.from(h)))
             val aggregatedHitStats = hitStats.reduceByKey(_ + _).map { case (url, stats) => stats }
-            val count = aggregatedHitStats.count()
+            val hitCount = aggregatedHitStats.map(s => s.count + s.error_count).reduce(_ + _)
+            val aggCount = aggregatedHitStats.count()
             aggregatedHitStats.saveToCassandra("sparktest", "aggregated_hits")
             exchange.getResponseSender.send(pretty(render(
               JObject(
-                "count" -> JInt(count)
+                "hitCount" -> JInt(hitCount),
+                "aggCount" -> JInt(aggCount)
               )
             )))
           }
