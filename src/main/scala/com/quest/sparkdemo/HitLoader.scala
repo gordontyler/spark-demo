@@ -25,7 +25,7 @@ object HitLoader {
 
     val ssc = new StreamingContext(conf, Duration(10000))
 
-    val inputsDir: File = new File(System.getenv("HOME"), "dev/spark-test/inputs")
+    val inputsDir: File = new File(args(0))
     val input = ssc.textFileStream(inputsDir.toString)
     input.print()
 
