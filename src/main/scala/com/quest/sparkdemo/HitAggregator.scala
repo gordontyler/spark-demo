@@ -23,6 +23,8 @@ object HitAggregator {
     }
 
     val sc = new SparkContext(conf)
+    @volatile var server: Undertow = null
+    val stopSignal = new Object()
 
     val routeHandler = Handlers.routing()
       .post("/aggregate", new HttpHandler {
@@ -50,8 +52,22 @@ object HitAggregator {
           }
         }
       })
+      .post("/shutdown", new HttpHandler {
+        override def handleRequest(exchange: HttpServerExchange): Unit = {
+          stopSignal.synchronized {
+            stopSignal.notifyAll()
+          }
+        }
+      })
 
-    val server = Undertow.builder().addHttpListener(8181, "localhost", routeHandler).build()
+    server = Undertow.builder().addHttpListener(8181, "localhost", routeHandler).build()
     server.start()
+
+    stopSignal.synchronized {
+      stopSignal.wait()
+    }
+
+    server.stop()
+    sc.stop()
   }
 }
