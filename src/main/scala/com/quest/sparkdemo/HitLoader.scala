@@ -35,7 +35,7 @@ object HitLoader {
     val hits = lines.map(l => Hit(UUIDs.timeBased(), l.address, l.path, l.status.toInt))
     hits.print()
 
-    hits.saveToCassandra("sparktest", "hits")
+    hits.saveToCassandra("sparkdemo", "hits")
 
     @volatile var server: Undertow = null
     val stopSignal = new Object()

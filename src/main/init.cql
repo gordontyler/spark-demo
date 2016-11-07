@@ -1,5 +1,5 @@
-CREATE KEYSPACE sparktest WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};
-USE sparktest;
+CREATE KEYSPACE sparkdemo WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};
+USE sparkdemo;
 CREATE TABLE hits (
     id timeuuid,
     source text,
