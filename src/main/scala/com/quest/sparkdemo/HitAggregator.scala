@@ -3,6 +3,7 @@ package com.quest.sparkdemo
 import com.datastax.spark.connector._
 import io.undertow.server.{HttpHandler, HttpServerExchange}
 import io.undertow.{Handlers, Undertow}
+import org.apache.spark.streaming.Seconds
 import org.apache.spark.{SparkConf, SparkContext}
 import org.json4s.DefaultFormats
 import org.json4s.JsonAST.{JInt, JObject, JString}
@@ -17,6 +18,7 @@ object HitAggregator {
   def main(args: Array[String]) {
     val conf = new SparkConf()
       .setAppName("HitAggregator")
+      .set("spark.cassandra.connection.keep_alive_ms", Seconds(30).milliseconds.toString)
 
     if (conf.get("spark.cassandra.connection.host", null) == null) {
       conf.set("spark.cassandra.connection.host", "localhost")
