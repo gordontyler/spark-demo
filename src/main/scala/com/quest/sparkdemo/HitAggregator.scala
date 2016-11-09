@@ -77,8 +77,11 @@ object HitAggregator {
     val hits = sc.cassandraTable[Hit]("sparkdemo", "hits")
     val hitStatsByURL = hits.map(hit => (hit.url, HitStats.from(hit)))
     val aggregatedHitStatsByURL = hitStatsByURL.reduceByKey((hs1, hs2) => hs1 + hs2)
-    val aggregatedHitStats = aggregatedHitStatsByURL.map { case (url, stats) => stats }
-    val hitCount = aggregatedHitStats.map(s => s.count + s.error_count).fold(0)((c1, c2) => c1 + c2)
+    val aggregatedHitStats = aggregatedHitStatsByURL.map { case (url, hs) => hs }
+    val hitCount = aggregatedHitStats.aggregate(0)(
+      (c, hs) => c + hs.count + hs.error_count,
+      (c1, c2) => c1 + c2
+    )
     val aggCount = aggregatedHitStats.count()
     aggregatedHitStats.saveToCassandra("sparkdemo", "aggregated_hits")
 
