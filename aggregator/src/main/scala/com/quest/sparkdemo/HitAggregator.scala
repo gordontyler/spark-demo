@@ -25,7 +25,6 @@ object HitAggregator {
     }
 
     val sc = new SparkContext(conf)
-    @volatile var server: Undertow = null
     val stopSignal = new Object()
 
     val routeHandler = Handlers.routing()
@@ -60,7 +59,7 @@ object HitAggregator {
         }
       })
 
-    server = Undertow.builder().addHttpListener(8282, "localhost", routeHandler).build()
+    val server = Undertow.builder().addHttpListener(8282, "localhost", routeHandler).build()
     server.start()
 
     stopSignal.synchronized {
@@ -75,6 +74,7 @@ object HitAggregator {
 
   def aggregate(sc: SparkContext): AggregateResult = {
     val hits = sc.cassandraTable[Hit]("sparkdemo", "hits")
+
     val hitStatsByURL = hits.map(hit => (hit.url, HitStats.from(hit)))
     val aggregatedHitStatsByURL = hitStatsByURL.reduceByKey((hs1, hs2) => hs1 + hs2)
     val aggregatedHitStats = aggregatedHitStatsByURL.map { case (url, hs) => hs }

@@ -37,7 +37,6 @@ object HitLoader {
 
     hits.saveToCassandra("sparkdemo", "hits")
 
-    @volatile var server: Undertow = null
     val stopSignal = new Object()
 
     val routeHandler = Handlers.routing()
@@ -49,7 +48,7 @@ object HitLoader {
         }
       })
 
-    server = Undertow.builder().addHttpListener(8181, "localhost", routeHandler).build()
+    val server = Undertow.builder().addHttpListener(8181, "localhost", routeHandler).build()
     server.start()
 
     ssc.start()
