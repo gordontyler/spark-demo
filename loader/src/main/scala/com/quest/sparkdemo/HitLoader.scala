@@ -3,7 +3,7 @@ package com.quest.sparkdemo
 import java.io.File
 
 import com.datastax.driver.core.utils.UUIDs
-import com.datastax.spark.connector.streaming._
+import com.datastax.spark.connector.streaming.toDStreamFunctions
 import io.undertow.server.{HttpHandler, HttpServerExchange}
 import io.undertow.{Handlers, Undertow}
 import org.apache.spark.SparkConf
