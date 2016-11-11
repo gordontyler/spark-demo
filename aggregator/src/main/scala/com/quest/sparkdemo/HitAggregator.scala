@@ -3,8 +3,9 @@ package com.quest.sparkdemo
 import com.datastax.spark.connector._
 import io.undertow.server.{HttpHandler, HttpServerExchange}
 import io.undertow.{Handlers, Undertow}
-import org.apache.spark.streaming.Seconds
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.sql._
+import org.apache.spark.streaming.Seconds
 import org.json4s.DefaultFormats
 import org.json4s.JsonAST.{JInt, JObject, JString}
 import org.json4s.native.JsonMethods._
@@ -25,13 +26,15 @@ object HitAggregator {
     }
 
     val sc = new SparkContext(conf)
+    val session = SparkSession.builder().config(conf).getOrCreate()
     val stopSignal = new Object()
 
     val routeHandler = Handlers.routing()
       .post("/aggregate", new HttpHandler {
         override def handleRequest(exchange: HttpServerExchange): Unit = {
           try {
-            val result = aggregate(sc)
+            val sql = exchange.getQueryParameters.containsKey("sql")
+            val result = if (sql) aggregateSQL(session) else aggregate(sc)
 
             exchange.getResponseSender.send(pretty(render(
               JObject(
@@ -69,17 +72,21 @@ object HitAggregator {
     Thread.sleep(1000)
 
     server.stop()
+    session.stop()
     sc.stop()
   }
 
   def aggregate(sc: SparkContext): AggregateResult = {
-    val hits = sc.cassandraTable[Hit]("sparkdemo", "hits")
+    val hitsTable = sc
+      .cassandraTable("sparkdemo", "hits")
+      .select("url", "status")
+      .as(HitSubset)
 
-    val hitStatsByURL = hits.map(hit => (hit.url, HitStats.from(hit)))
+    val hitStatsByURL = hitsTable.map(h => (h.url, HitStats(h.url, 1, if (h.status == 200) 0 else 1)))
     val aggregatedHitStatsByURL = hitStatsByURL.reduceByKey((hs1, hs2) => hs1 + hs2)
     val aggregatedHitStats = aggregatedHitStatsByURL.map { case (url, hs) => hs }
-    val hitCount = aggregatedHitStats.aggregate(0)(
-      (c, hs) => c + hs.count + hs.error_count,
+    val hitCount = aggregatedHitStats.aggregate(0L)(
+      (c, hs) => c + hs.count,
       (c1, c2) => c1 + c2
     )
     val aggCount = aggregatedHitStats.count()
@@ -88,5 +95,33 @@ object HitAggregator {
     AggregateResult(hitCount, aggCount)
   }
 
-  case class AggregateResult(hitCount: Int, aggCount: Long)
+  def aggregateSQL(session: SparkSession): AggregateResult = {
+    import org.apache.spark.sql.expressions.scalalang.typed._
+    import session.implicits._
+
+    val hitsTable = session.sparkContext
+      .cassandraTable("sparkdemo", "hits")
+      .select("url", "status")
+      .as(HitSubset)
+
+    val hitsDS = session.createDataset(hitsTable)
+
+    val aggHits = hitsDS
+      .map(h => HitStats(h.url, 1, if (h.status == 200) 0 else 1))
+      .groupByKey(_.url)
+      .agg(sumLong[HitStats](_.count).name("count"),
+           sumLong[HitStats](_.error_count).name("error_count"))
+      .withColumnRenamed("value", "url")
+      .as[HitStats]
+
+    val hitCount = hitsDS.count()
+    val aggCount = aggHits.count()
+
+    aggHits.rdd.saveToCassandra("sparkdemo", "aggregated_hits")
+
+    AggregateResult(hitCount, aggCount)
+  }
+
+  case class AggregateResult(hitCount: Long, aggCount: Long)
+  case class HitSubset(url: String, status: Int)
 }

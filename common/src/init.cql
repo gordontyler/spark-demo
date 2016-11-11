@@ -8,9 +8,8 @@ CREATE TABLE hits (
     PRIMARY KEY (source, id)
 );
 CREATE TABLE aggregated_hits (
-    source text,
     url text,
     count int,
     error_count int,
-    PRIMARY KEY (source, url)
+    PRIMARY KEY (url)
 );
